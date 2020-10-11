@@ -14,4 +14,4 @@ python main.py
 
 ## 데모
 
-<img src="https://github.com/erichikaeri/HappyUClass/blob/master/demo.gif"/>
+<img src="https://github.com/erichikaeri/HappyUClass/blob/main/demo.gif"/>
