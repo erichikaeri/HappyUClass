@@ -28,6 +28,9 @@ class UClassBrowser:
     def __exit__(self, exc_type, exc_value, traceback):
         self.driver.close()
 
+    def close(self):
+        self.driver.close()
+
     def login(self, id, password):
         self.driver.get("https://portal.uos.ac.kr/user/login.face");
 
