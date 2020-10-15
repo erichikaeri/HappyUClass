@@ -1,4 +1,5 @@
 from time import sleep
+from requests.sessions import session
 from selenium import webdriver
 from selenium.common.exceptions import UnexpectedAlertPresentException
 from selenium.webdriver.common.by import By
@@ -71,6 +72,9 @@ class UClassBrowser:
         table = soup.find("table")
         self.courseList = table.find_all("a", { "target": "_parent", "title": None })
 
+        for k, v in self.session.cookies.get_dict().items():
+            self.driver.add_cookie({ "name" : k, "value" : v })
+
         return list(map(lambda course : course.text, self.courseList))
 
     @staticmethod
@@ -87,9 +91,7 @@ class UClassBrowser:
         if not self.courseList:
             raise RuntimeError("수업 목록을 먼저 불러와야 함!")
 
-        if self.isLoggedIn:
-            for k, v in self.session.cookies.get_dict().items():
-                self.driver.add_cookie({ "name" : k, "value" : v })
+        self.lectures = []
 
         self.driver.get("http://uclass.uos.ac.kr" + self.courseList[courseNumber]["href"])
         self.driver.get("http://uclass.uos.ac.kr/AuthGroupMenu.do?cmd=goMenu&mcd=menu_00087")
@@ -165,7 +167,7 @@ class UClassBrowser:
         if not self.driver.execute_script("return typeof dwr.engine !== 'undefined'"):
             raise RuntimeError("새로고침은 강의 목록을 먼저 불러와야 함!")
         
-        res = requests.get("http://uclass.uos.ac.kr/AuthGroupMenu.do?cmd=goMenu&mcd=menu_00087", cookies=self.cookies)
+        res = self.session.get("http://uclass.uos.ac.kr/AuthGroupMenu.do?cmd=goMenu&mcd=menu_00087")
         soup = BeautifulSoup(res.content, "html.parser")
         lectureTable = soup.find("table", class_="list-table")
         lectureRows = lectureTable.find("tbody").find_all("tr")

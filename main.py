@@ -2,6 +2,7 @@ import random
 import tkinter
 import re
 from threading import Thread
+from time import sleep
 from ScrollableFrame import ScrollableFrame
 
 class Global:
@@ -51,11 +52,11 @@ class LoginScreen(ScreenBase):
     def show(self):
         super().show()
         Thread(target=self._initUClass).start()
+        self._showLoginForm()
 
     def _initUClass(self):
         from UClassBrowser import UClassBrowser
         self.manager.uclass = UClassBrowser()
-        self.window.after(0, self._showLoginForm)
 
     def _showLoginForm(self):
         '''
@@ -65,6 +66,7 @@ class LoginScreen(ScreenBase):
         self.logo.pack()
         self.loginFrame.pack(pady=30)
         self.loginButton.pack()
+        self.loginIdEntry.focus()
 
     def _onLoginButtonClicked(self):
         self.loginIdEntry["state"] = "disable"
@@ -87,16 +89,19 @@ class CourseListScreen(ScreenBase):
 
     def show(self):
         super().show()
-        Thread(target=self._fetchCourseList).start()
+        if not self.manager.courseList:
+            Thread(target=self._fetchCourseList).start()
+        else:
+            self._showCourseList()
 
     def _fetchCourseList(self):
-        courseList = self.manager.uclass.fetchCourseList()
-        self.window.after(0, lambda: self._showCourseList(courseList))
+        self.manager.courseList = self.manager.uclass.fetchCourseList()
+        self.window.after(0, self._showCourseList)
 
-    def _showCourseList(self, courseList):
+    def _showCourseList(self):
         self.loadingLabel.destroy()
         tkinter.Label(master=self.centerFrame, text=Global.selectCourse).pack()
-        for i, course in enumerate(courseList):
+        for i, course in enumerate(self.manager.courseList):
             tkinter\
                 .Button(master=self.centerFrame, text=course, anchor="w", command=lambda localI = i: self._onCourseButtonClicked(localI))\
                 .pack(pady=5, fill=tkinter.BOTH)
@@ -129,6 +134,9 @@ class LectureListScreen(ScreenBase):
         self.backButton.destroy()
 
     def _fetchLectureList(self):
+        while not self.manager.uclass:
+            sleep(0.1)
+
         self.chapterList = self.manager.uclass.fetchLectureList(self.courseNumber)
         self.window.after(0, lambda: self._showLectureList())
 
@@ -211,13 +219,14 @@ class UIManager:
         self.window.resizable(width=False, height=False)
         self.uclass = None
 
-        self.sequenceNodes = [LoginScreen, CourseListScreen, LectureListScreen]
-        self.sequenceEdges = [1, 2, 1]
+        self.screenConstructors = [LoginScreen, CourseListScreen, LectureListScreen]
+        self.screenEdges = [1, 2, 1]
         self.currentNode = 0
 
         self.courseNumber = None
+        self.courseList = []
 
-        self.screen = self.sequenceNodes[self.currentNode](self.window, self)
+        self.screen = self.screenConstructors[self.currentNode](self.window, self)
 
     def run(self):
         self.screen.show()
@@ -230,9 +239,9 @@ class UIManager:
         '''
         Must be called from UI thread
         '''
-        self.currentNode = self.sequenceEdges[self.currentNode]
+        self.currentNode = self.screenEdges[self.currentNode]
         self.screen.destory()
-        self.screen = self.sequenceNodes[self.currentNode](self.window, self)
+        self.screen = self.screenConstructors[self.currentNode](self.window, self)
         self.screen.show()
 
 if __name__ == "__main__":
