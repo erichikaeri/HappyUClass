@@ -3,10 +3,13 @@ import tkinter
 import re
 from threading import Thread
 from time import sleep
+
+import requests
 from ScrollableFrame import ScrollableFrame
 
 class Global:
     version = 1
+    versionLoading = "버전 정보를 가져오는 중..."
     versionTextLatest = "최신버전입니다."
     versionTextOutdated = "업데이트가 있습니다. 새 기능을 쓰려면 새로 다운 받으세요."
     warning = "본 프로그램을 사용함으로써 발생할 수 있는 불이익에 대해\n제작자는 책임지지 않습니다."
@@ -41,7 +44,22 @@ class WarningScreen(ScreenBase):
         self.loadingLabel.destroy()
         tkinter.Label(self.centerFrame, text=Global.warning).pack(pady=20)
         tkinter.Button(self.centerFrame, text=Global.warningOK, command=self.manager.nextScreen).pack()
-        tkinter.Label(self.centerFrame, text="").pack(pady=20)
+        self.versionLabel = tkinter.Label(self.centerFrame, text=Global.versionLoading)
+        self.versionLabel.pack(pady=20)
+
+    def show(self):
+        super().show()
+        Thread(target=self._checkVersion).start()
+
+    def _checkVersion(self):
+
+        # link might fail and label update might fail (it could already have been destroyed)
+        try:
+            res = requests.get("https://raw.githubusercontent.com/erichikaeri/HappyUClass/main/version.txt")
+            version = float(res.text)
+            self.versionLabel["text"] = Global.versionTextLatest if version == Global.version else Global.versionTextOutdated
+        except:
+            pass
 
 class LoginScreen(ScreenBase):
     def __init__(self, window, manager):
@@ -74,7 +92,9 @@ class LoginScreen(ScreenBase):
         self.logo.pack()
         self.loginFrame.pack(pady=30)
         self.loginButton.pack()
+
         self.loginIdEntry.focus()
+        self.loginPasswordEntry.bind("<Return>", lambda event: self._onLoginButtonClicked())
 
     def _onLoginButtonClicked(self):
         self.loginIdEntry["state"] = "disable"
