@@ -65,7 +65,7 @@ class UClassBrowser:
         ret["name"] = chapter["tds"][0].text.strip()
         ret["children"] = list(map(lambda tds : { 
             "name" : tds[0].text.strip(),
-            "status" : tds[2].text
+            "status" : tds[2].text.strip()
             }, chapter["children"]))
         return ret
 

@@ -1,4 +1,5 @@
 import tkinter
+import re
 from threading import Thread
 from ScrollableFrame import ScrollableFrame
 
@@ -101,20 +102,27 @@ class CourseListScreen(ScreenBase):
         self.manager.nextScreen()
 
 class LectureListScreen(ScreenBase):
+    rerawTimes = r"\((.*)\/(.*)\/(.*)\)"
+    rerawMinSec = r"(\d+)분(?:(\d+)초)?"
+    reTimes = re.compile(rerawTimes)
+    reMinSec = re.compile(rerawMinSec)
+
     def __init__(self, window, manager):
         super().__init__(window, manager)
         self.scrollableFrame = ScrollableFrame(window)
         self.courseNumber = manager.courseNumber
+        self.buttons = []
+        self.chapterList = []
 
     def show(self):
         super().show()
         Thread(target=self._fetchLectureList).start()
 
     def _fetchLectureList(self):
-        chapterList = self.manager.uclass.fetchLectureList(self.courseNumber)
-        self.window.after(0, lambda: self._showLectureList(chapterList))
+        self.chapterList = self.manager.uclass.fetchLectureList(self.courseNumber)
+        self.window.after(0, lambda: self._showLectureList())
 
-    def _showLectureList(self, chapterList):
+    def _showLectureList(self):
         self.centerFrame.destroy()
         self.scrollableFrame.pack(expand=True, fill=tkinter.BOTH)
 
@@ -124,19 +132,59 @@ class LectureListScreen(ScreenBase):
         f.pack(expand=True, fill=tkinter.X)
 
         row = 0
-        for i, chapter in enumerate(chapterList):
+        for i, chapter in enumerate(self.chapterList):
             tkinter.Label(f, text=chapter["name"], anchor="w")\
                     .grid(row=row, column=0, columnspan=2, sticky="we")
             row += 1
             for j, lecture in enumerate(chapter["children"]):
-                tkinter\
-                    .Button(master=f, text=lecture["name"], anchor="w")\
-                    .grid(row=row, column=0, sticky="we")
-                tkinter\
-                    .Label(master=f, text=lecture["status"], anchor="w")\
-                    .grid(row=row, column=1, sticky="we", padx=5)
+                self.buttons.append(tkinter\
+                    .Button(master=f, text=lecture["name"], anchor="w",\
+                        command=lambda localI = i, localj = j: self._onButtonClicked(localI, localj)))
+                self.buttons[-1].grid(row=row, column=0, sticky="we")
+                lecture["statusLabel"] = tkinter.Label(master=f, text=lecture["status"], anchor="w")
+                lecture["statusLabel"].grid(row=row, column=1, sticky="we", padx=5)
 
                 row += 1
+
+    def _convertTimeToSeconds(self, time):
+        try:
+            m = self.reMinSec.findall(time)[0]
+            ret = int(m.group(1)) * 60
+            if m.group(2):
+                ret += int(m.group(2))
+            return ret
+        except:
+            return 0
+
+    def _onButtonClicked(self, chapter, lecture):
+        for button in self.buttons:
+            button["state"] = "disable"
+
+        status = self.chapterList[chapter]["children"][lecture]["status"]
+        try:
+            m = self.reTimes.findall(status)[0]
+            studied = self._convertTimeToSeconds(m.group(1))
+            required = self._convertTimeToSeconds(m.group(3))
+            diff = required - studied
+
+            if diff < 0:
+                raise Exception()
+
+            Thread(target=self._freeMySoul, args=(chapter, lecture, diff)).start()
+        except:
+            for button in self.buttons:
+                button["state"] = "normal"
+
+    def _freeMySoul(self, chapter, lecture, seconds):
+        try:
+            self.manager.uclass.freeMySoul(chapter, lecture, seconds)
+        except:
+            pass
+
+        # TODO: edit labels
+
+        for button in self.buttons:
+            button["state"] = "normal"
 
 class UIManager:
     def __init__(self):
