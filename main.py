@@ -1,3 +1,4 @@
+import random
 import tkinter
 import re
 from threading import Thread
@@ -12,6 +13,7 @@ class Global:
     loadingText = "불러오는 중..."
     selectCourse = "과목을 선택하세요"
     selectLecture = "강의를 선택하세요"
+    back = "뒤로가기"
 
 class ScreenBase:
     def __init__(self, window, manager):
@@ -102,7 +104,7 @@ class CourseListScreen(ScreenBase):
         self.manager.nextScreen()
 
 class LectureListScreen(ScreenBase):
-    rerawTimes = r"\((.*)\/(.*)\/(.*)\)"
+    rerawTimes = r".*\((.*)\/(.*)\/(.*)\).*"
     rerawMinSec = r"(\d+)분(?:(\d+)초)?"
     reTimes = re.compile(rerawTimes)
     reMinSec = re.compile(rerawMinSec)
@@ -111,6 +113,7 @@ class LectureListScreen(ScreenBase):
         super().__init__(window, manager)
         self.scrollableFrame = ScrollableFrame(window)
         self.courseNumber = manager.courseNumber
+        self.backButton = None
         self.buttons = []
         self.chapterList = []
 
@@ -118,12 +121,19 @@ class LectureListScreen(ScreenBase):
         super().show()
         Thread(target=self._fetchLectureList).start()
 
+    def destory(self):
+        super().destory()
+        self.scrollableFrame.destroy()
+        self.backButton.destroy()
+
     def _fetchLectureList(self):
         self.chapterList = self.manager.uclass.fetchLectureList(self.courseNumber)
         self.window.after(0, lambda: self._showLectureList())
 
     def _showLectureList(self):
         self.centerFrame.destroy()
+        self.backButton = tkinter.Button(text=Global.back, command=self.manager.nextScreen)
+        self.backButton.pack(anchor="w")
         self.scrollableFrame.pack(expand=True, fill=tkinter.BOTH)
 
         tkinter.Label(self.scrollableFrame.frame, text=Global.selectLecture, font=(None, 20)).pack(expand=True, fill=tkinter.BOTH)
@@ -148,7 +158,7 @@ class LectureListScreen(ScreenBase):
 
     def _convertTimeToSeconds(self, time):
         try:
-            m = self.reMinSec.findall(time)[0]
+            m = self.reMinSec.match(time)
             ret = int(m.group(1)) * 60
             if m.group(2):
                 ret += int(m.group(2))
@@ -162,12 +172,12 @@ class LectureListScreen(ScreenBase):
 
         status = self.chapterList[chapter]["children"][lecture]["status"]
         try:
-            m = self.reTimes.findall(status)[0]
+            m = self.reTimes.match(status)
             studied = self._convertTimeToSeconds(m.group(1))
             required = self._convertTimeToSeconds(m.group(3))
             diff = required - studied
 
-            if diff < 0:
+            if diff <= 0:
                 raise Exception()
 
             Thread(target=self._freeMySoul, args=(chapter, lecture, diff)).start()
@@ -177,11 +187,16 @@ class LectureListScreen(ScreenBase):
 
     def _freeMySoul(self, chapter, lecture, seconds):
         try:
+            seconds += random.randint(1, 59)
             self.manager.uclass.freeMySoul(chapter, lecture, seconds)
         except:
             pass
 
-        # TODO: edit labels
+        refreshedChapterList = self.manager.uclass.refreshLectureList()
+        self.chapterList[chapter]["children"][lecture]["status"] = \
+            refreshedChapterList[chapter]["children"][lecture]["status"]
+        self.chapterList[chapter]["children"][lecture]["statusLabel"]["text"] = \
+            refreshedChapterList[chapter]["children"][lecture]["status"]
 
         for button in self.buttons:
             button["state"] = "normal"
@@ -195,7 +210,7 @@ class UIManager:
         self.uclass = None
 
         self.sequenceNodes = [LoginScreen, CourseListScreen, LectureListScreen]
-        self.sequenceEdges = [1, 2, 3]
+        self.sequenceEdges = [1, 2, 1]
         self.currentNode = 0
 
         self.courseNumber = None
@@ -217,36 +232,6 @@ class UIManager:
         self.screen.destory()
         self.screen = self.sequenceNodes[self.currentNode](self.window, self)
         self.screen.show()
-
-# def lectureSelectSequence(uclass, chapterList):
-#     chapter = -1
-#     print("*돌아가려면 back을 치세요.")
-#     print("**위 [] 안의 번호를 기준으로 입력하세요.")
-#     while True:
-#         chapter = input("단원 번호를 입력하세요 : ")
-#         if chapter == "back":
-#             return -1, -1
-
-#         chapter = checkIntAndRange(chapter, len(chapterList))
-#         if chapter >= 0:
-#             break
-    
-#     lecture = -1
-#     while True:
-#         lecture = input("강의 번호를 입력하세요 : ")
-#         if lecture == "back":
-#             return -1, -1
-
-#         lecture = checkIntAndRange(lecture, len(chapterList[chapter]["children"]))
-#         if lecture >= 0:
-#             break
-
-#     return chapter, lecture
-
-# def finalSequence(uclass, chapter, lecture):
-#     seconds = input("몇 초 늘리시겠습니까? : ")
-#     uclass.freeMySoul(chapter, lecture, seconds)
-#     print("성공")
 
 if __name__ == "__main__":
     uiManager = UIManager()
