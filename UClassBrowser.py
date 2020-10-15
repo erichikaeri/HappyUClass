@@ -3,6 +3,8 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.firefox.webdriver import WebDriver
 from selenium.webdriver.support import expected_conditions as EC
+import requests
+from bs4 import BeautifulSoup
 
 def sleepUntil(condition):
     while True:
@@ -54,7 +56,7 @@ class UClassBrowser:
         self.driver.switch_to.frame("bodyFrame")
         table = self.driver.find_element_by_xpath("//table[@summary='과목 목록']")
         self.courseList =  table.find_elements_by_xpath("//a[@target='_parent' and not(@title)]")
-        
+
         return list(map(lambda course : course.text, self.courseList))
 
     @staticmethod
@@ -140,6 +142,27 @@ class UClassBrowser:
             and self.driver.execute_script("return typeof StudyWork !== 'undefined'"))
 
         return list(map(self._convertLectureListToString, self.lectures))
+
+    def refreshLectureList(self):
+        if not self.driver.execute_script("return typeof dwr.engine !== 'undefined'"):
+            raise RuntimeError("새로고침은 강의 목록을 먼저 불러와야 함!")
+        
+        cookies = self.driver.get_cookie("JSESSIONID")
+        cookie = { cookies["name"] : cookies["value"] }
+        res = requests.get("http://uclass.uos.ac.kr/AuthGroupMenu.do?cmd=goMenu&mcd=menu_00087", cookies=cookie)
+        soup = BeautifulSoup(res.content, "html.parser")
+        lectureTable = soup.find("table", class_="list-table")
+        lectureRows = lectureTable.find("tbody").find_all("tr")
+
+        ret = []
+        for row in lectureRows:
+            tds = row.find_all("td")
+            if row.find("a"):
+                ret[-1]["children"].append({ "name" : tds[0].text.strip(), "status" : tds[2].text.strip() })
+            else:
+                ret.append({ "name" : tds[0].text.strip(), "children" : [] })
+
+        return ret
 
     def freeMySoul(self, chapter, lecture, seconds):
         if not self.lectures:
