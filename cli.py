@@ -87,9 +87,22 @@ def finalSequence(uclass, chapter, lecture):
 
 if __name__ == "__main__":
     print("초기화 하는 중... 좀 걸림")
-    from UClassBrowser import UClassBrowser
 
-    with UClassBrowser() as uclass:
+    from UClassBrowser import UClassBrowser
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.chrome.webdriver import WebDriver
+
+    options = Options()
+    options.headless = True
+    options.add_argument("--log-level=OFF")
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    
+    with webdriver.Chrome(executable_path="./chromedriver.exe", options=options, service_log_path="NUL") as driver:
+        driver.get("http://uclass.uos.ac.kr/")
+        uclass = UClassBrowser()
+        uclass.driver = driver
+
         loginSequence(uclass)
 
         while True:
