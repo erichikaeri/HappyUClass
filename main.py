@@ -260,6 +260,16 @@ class UIManager:
         from UClassBrowser import UClassBrowser
         self.uclass = UClassBrowser()
 
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.chrome.webdriver import WebDriver
+
+        options = Options()
+        options.headless = True
+        driver : WebDriver = webdriver.Chrome(executable_path="./chromedriver.exe", options=options)
+        driver.get("http://uclass.uos.ac.kr/")
+        self.uclass.driver = driver
+
     def run(self):
         initThread = Thread(target=self._initUClass)
         initThread.start()

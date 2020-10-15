@@ -1,14 +1,5 @@
 from time import sleep
-from requests.sessions import session
-from selenium import webdriver
-from selenium.common.exceptions import UnexpectedAlertPresentException
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.expected_conditions import visibility_of_element_located
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.keys import Keys
 import requests
 from bs4 import BeautifulSoup
 
@@ -21,13 +12,7 @@ def sleepUntil(condition):
 
 class UClassBrowser:
     def __init__(self):
-        options = Options()
-        options.headless = True
-        options.add_argument("--log-level=OFF")
-        options.add_experimental_option('excludeSwitches', ['enable-logging'])
-        self.driver : WebDriver = webdriver.Chrome(executable_path="./chromedriver.exe", options=options, service_log_path="NUL")
-        self.driver.get("http://uclass.uos.ac.kr/")
-
+        self.driver = None
         self.isLoggedIn = False
         self.courseList = []
         self.lectures = []
