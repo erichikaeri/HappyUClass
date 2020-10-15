@@ -4,12 +4,13 @@ os: Windows
 
 ## Dependency
 ```
-pip install selenium
+pip install selenium requests beautifulsoup4
 ```
 
 ## 사용법
 ```
-python main.py
+python cli.py   # Command line
+python main.py  # UI
 ```
 
 ## 데모
