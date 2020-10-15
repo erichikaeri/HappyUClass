@@ -73,11 +73,13 @@ class LoginScreen(ScreenBase):
         Thread(target=self._login).start()
 
     def _login(self):
-        try:
-            self.manager.uclass.login(self.loginIdEntry.get(), self.loginPasswordEntry.get())
+        self.manager.uclass.login(self.loginIdEntry.get(), self.loginPasswordEntry.get())
+        if (self.manager.uclass.isLoggedIn):
             self.window.after(0, lambda: self.manager.nextScreen())
-        except:
-            pass
+        else:
+            self.loginIdEntry["state"] = "normal"
+            self.loginPasswordEntry["state"] = "normal"
+            self.loginButton["state"] = "normal"
 
 class CourseListScreen(ScreenBase):
     def __init__(self, window, manager):

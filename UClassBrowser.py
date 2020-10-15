@@ -1,8 +1,13 @@
 from time import sleep
 from selenium import webdriver
+from selenium.common.exceptions import UnexpectedAlertPresentException
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.expected_conditions import visibility_of_element_located
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.firefox.webdriver import WebDriver
+from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.keys import Keys
 import requests
 from bs4 import BeautifulSoup
 
@@ -20,9 +25,12 @@ class UClassBrowser:
         options.add_argument("--log-level=OFF")
         options.add_experimental_option('excludeSwitches', ['enable-logging'])
         self.driver : WebDriver = webdriver.Chrome(executable_path="./chromedriver.exe", options=options, service_log_path="NUL")
+        self.driver.get("http://uclass.uos.ac.kr/")
+
         self.isLoggedIn = False
         self.courseList = []
         self.lectures = []
+        self.session = None
 
     def __enter__(self):
         return self
@@ -34,16 +42,21 @@ class UClassBrowser:
         self.driver.close()
 
     def login(self, id, password):
-        self.driver.get("https://portal.uos.ac.kr/user/login.face");
+        data = {
+            "_enpass_login_":"submit",
+            "langKnd":"ko",
+            "loginType":"normal",
+            "returnUrl":"",
+            "ssoId":"",
+            "password":""
+        }
 
-        loginId = self.driver.find_element_by_xpath("//input[@id='id']")
-        loginPwd = self.driver.find_element_by_xpath("//input[@id='pw']")
-        loginSubmit = self.driver.find_element_by_class_name("btn_login")
+        data["ssoId"] = id
+        data["password"] = password
 
-        loginId.send_keys(id)
-        loginPwd.send_keys(password)
-        loginSubmit.click()
-        self.isLoggedIn = True
+        self.session = requests.Session()
+        res = self.session.post("https://portal.uos.ac.kr/user/loginProcess.face", data=data)
+        self.isLoggedIn = "ENPASSTGC" in self.session.cookies.get_dict()
 
     def fetchCourseList(self):
         self.lectures = []
@@ -51,11 +64,12 @@ class UClassBrowser:
         if not self.isLoggedIn:
             raise RuntimeError("로그인을 먼저 해야함!")
 
-        self.driver.get("http://uclass.uos.ac.kr/sso_main.jsp")
-        self.driver.switch_to.frame("main")
-        self.driver.switch_to.frame("bodyFrame")
-        table = self.driver.find_element_by_xpath("//table[@summary='과목 목록']")
-        self.courseList =  table.find_elements_by_xpath("//a[@target='_parent' and not(@title)]")
+        self.session.get("http://uclass.uos.ac.kr/sso_main.jsp")
+        self.session.get("http://uclass.uos.ac.kr/Main.do?cmd=viewHome")
+        res = self.session.get("http://uclass.uos.ac.kr/Study.do?cmd=viewStudyMyClassroom")
+        soup = BeautifulSoup(res.content, "html.parser")
+        table = soup.find("table")
+        self.courseList = table.find_all("a", { "target": "_parent", "title": None })
 
         return list(map(lambda course : course.text, self.courseList))
 
@@ -73,7 +87,11 @@ class UClassBrowser:
         if not self.courseList:
             raise RuntimeError("수업 목록을 먼저 불러와야 함!")
 
-        self.driver.get(self.courseList[courseNumber].get_attribute("href"))
+        if self.isLoggedIn:
+            for k, v in self.session.cookies.get_dict().items():
+                self.driver.add_cookie({ "name" : k, "value" : v })
+
+        self.driver.get("http://uclass.uos.ac.kr" + self.courseList[courseNumber]["href"])
         self.driver.get("http://uclass.uos.ac.kr/AuthGroupMenu.do?cmd=goMenu&mcd=menu_00087")
         lectureTable = self.driver.find_element_by_xpath("//table[@class='list-table']")
         lectureRows = lectureTable.find_elements_by_xpath("//tbody/tr")
@@ -147,9 +165,7 @@ class UClassBrowser:
         if not self.driver.execute_script("return typeof dwr.engine !== 'undefined'"):
             raise RuntimeError("새로고침은 강의 목록을 먼저 불러와야 함!")
         
-        cookies = self.driver.get_cookie("JSESSIONID")
-        cookie = { cookies["name"] : cookies["value"] }
-        res = requests.get("http://uclass.uos.ac.kr/AuthGroupMenu.do?cmd=goMenu&mcd=menu_00087", cookies=cookie)
+        res = requests.get("http://uclass.uos.ac.kr/AuthGroupMenu.do?cmd=goMenu&mcd=menu_00087", cookies=self.cookies)
         soup = BeautifulSoup(res.content, "html.parser")
         lectureTable = soup.find("table", class_="list-table")
         lectureRows = lectureTable.find("tbody").find_all("tr")
