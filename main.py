@@ -6,6 +6,11 @@ from time import sleep
 from ScrollableFrame import ScrollableFrame
 
 class Global:
+    version = 1
+    versionTextLatest = "최신버전입니다."
+    versionTextOutdated = "업데이트가 있습니다. 새 기능을 쓰려면 새로 다운 받으세요."
+    warning = "본 프로그램을 사용함으로써 발생할 수 있는 불이익에 대해\n제작자는 책임지지 않습니다."
+    warningOK = "동의합니다"
     title = "온라인강의실 자율학습도우미"
     logoText = "서울시립대학교\n온라인강의실 자율학습도우미"
     loginIdLabel = "아이디"
@@ -30,6 +35,14 @@ class ScreenBase:
     def destory(self):
         self.centerFrame.destroy()
 
+class WarningScreen(ScreenBase):
+    def __init__(self, window, manager):
+        super().__init__(window, manager)
+        self.loadingLabel.destroy()
+        tkinter.Label(self.centerFrame, text=Global.warning).pack(pady=20)
+        tkinter.Button(self.centerFrame, text=Global.warningOK, command=self.manager.nextScreen).pack()
+        tkinter.Label(self.centerFrame, text="").pack(pady=20)
+
 class LoginScreen(ScreenBase):
     def __init__(self, window, manager):
         super().__init__(window, manager)
@@ -51,12 +64,7 @@ class LoginScreen(ScreenBase):
 
     def show(self):
         super().show()
-        Thread(target=self._initUClass).start()
         self._showLoginForm()
-
-    def _initUClass(self):
-        from UClassBrowser import UClassBrowser
-        self.manager.uclass = UClassBrowser()
 
     def _showLoginForm(self):
         '''
@@ -219,19 +227,27 @@ class UIManager:
         self.window.resizable(width=False, height=False)
         self.uclass = None
 
-        self.screenConstructors = [LoginScreen, CourseListScreen, LectureListScreen]
-        self.screenEdges = [1, 2, 1]
+        self.screenConstructors = [WarningScreen, LoginScreen, CourseListScreen, LectureListScreen]
+        self.screenEdges = [1, 2, 3, 2]
         self.currentNode = 0
 
         self.courseNumber = None
         self.courseList = []
 
         self.screen = self.screenConstructors[self.currentNode](self.window, self)
+    
+    def _initUClass(self):
+        from UClassBrowser import UClassBrowser
+        self.uclass = UClassBrowser()
 
     def run(self):
+        initThread = Thread(target=self._initUClass)
+        initThread.start()
+
         self.screen.show()
         self.window.mainloop()
 
+        initThread.join()
         if self.uclass:
             self.uclass.close()
 
