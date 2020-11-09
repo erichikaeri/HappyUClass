@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+    <body onload="onload()">
+        <h2 id="heading">버전 확인중...</h2>
+        <div id="update" hidden="true">
+            <div>
+                <button onclick="openReleases()">링크</button>
+            </div>
+            <div>
+                <button onclick="next()">그냥 쓰기</button>
+            </div>
+        </div>
+
+        <script>
+            // check for essential update
+            const fetch = require("node-fetch")
+            const url = "https://raw.githubusercontent.com/erichikaeri/HappyUClass/main/version.txt"
+            const release = "https://github.com/erichikaeri/HappyUClass/releases"
+            const { getVersion } = require("../Frontend/Version")
+            
+            async function onload() {
+                let response = await fetch(url)
+                let versionText = await response.text()
+                if (versionText.trim() !== getVersion()) {
+                    document.getElementById("update").hidden = false
+                    document.getElementById("heading").textContent = "새 버전 있음"
+                }
+                else
+                    next()
+            }
+            
+            function next() {
+                location.href = "login.html"
+            }
+
+            function openReleases() {
+                require("electron").shell.openExternal(release)
+            }
+        </script>
+    </body>
+</html>

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>온라인강의실 2</title>
+</head>
+
+<body>
+    <h1>서울시립대학교 온라인강의실 2</h1>
+    <h3 id="heading" hidden="true">로그인 중...</h3>
+    <div id="loginForm">
+        <h3>아이디</h3>
+        <input id="username" />
+        <h3>비밀번호</h3>
+        <input id="password" onkeydown="enter(event)"/></br></br>
+        <button type="button" onclick="login()">로그인</button>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require("electron")
+
+        function enter(e) {
+            if (e.key === "Enter")
+                login()
+        }
+
+        function login() {
+            document.getElementById("heading").hidden = false
+            document.getElementById("heading").textContent = "로그인 중..."
+            document.getElementById("loginForm").hidden = true
+            let username = document.getElementById("username").value
+            let password = document.getElementById("password").value
+            ipcRenderer.send("loginRequest", { username: username, password: password })
+        }
+
+        // TODO: encapsulate electron calls away from the pure front end javascript
+        ipcRenderer.on("loginReply", (event, arg) => {
+            if (arg)
+                location.href = "lectureList.html"
+            else {
+                document.getElementById("heading").textContent = "로그인 실패"
+                document.getElementById("loginForm").hidden = false
+                document.getElementById("username").focus()
+            }
+        })
+
+        document.getElementById("username").focus()
+    </script>
+</body>
+
+</html>

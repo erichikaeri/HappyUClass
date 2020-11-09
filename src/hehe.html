@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+    <body>
+        <!-- template to create chapter element -->
+        <div id="chapterElement" hidden="true">
+            <h3>chapter name</h3>
+            <ol class="sections">
+            </ol>
+        </div>
+
+        <div id="container">
+
+        </div>
+
+        <script>
+            for (let i = 0; i < 10; i++)
+            {
+                let chapterNode = document.getElementById("chapterElement").cloneNode(true)
+                chapterNode.id = "hehe" + i
+                document.getElementById("container").appendChild(chapterNode)
+
+                let sectionNode = document.createElement("p")
+                let text = document.createTextNode("hehe")
+                sectionNode.append(text)
+                document.querySelector(`#hehe${i} .sections`).appendChild(sectionNode)
+            }
+        </script>
+    </body>
+</html>

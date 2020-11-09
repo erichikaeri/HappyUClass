@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>온라인강의실 2</title>
+</head>
+
+<body>
+    <script>
+        const { ipcRenderer } = require("electron")
+        const { requestAsyncHandler } = require("../Frontend/RequestAsyncHandler")
+        requestAsyncHandler.register("learnRequest", "learnReply")
+        requestAsyncHandler.register("studyCourseListRequest", "studyCourseListReply")
+        requestAsyncHandler.register("downloadRequest", "downloadReply")
+
+        let studyCourseList;
+        let heading;
+        let courseList;
+        let lectureList;
+        let courseElement;
+        let chapterElement;
+        let sectionElement;
+        let allLearnButtons = []
+        let pendingSection = {}
+        let downloads = {}
+
+        function makeDisplayTimeString(studyTotalTime, lessonTime) {
+            // make display string for remaining time
+            let studiedTime =
+                Math.floor(studyTotalTime / 60)
+                + "분 "
+                + (studyTotalTime % 60) + "초"
+
+            let requiredTime = lessonTime + "분"
+
+            return studiedTime + " / " + requiredTime
+        }
+
+        function showCourses() {
+            heading.hidden = true
+            courseList.hidden = false
+            lectureList.hidden = true
+        }
+
+        function showLectures(courseIndex) {
+            allLearnButtons = []
+            ipcRenderer.send("setCourseRequest", courseIndex)
+
+            courseList.hidden = true
+
+            let course = studyCourseList[courseIndex]
+            let chapterList = course.studyContentsList
+            let sectionList = course.studyRecordElementList
+
+            // clear first
+            while (lectureList.firstChild)
+                lectureList.removeChild(lectureList.lastChild)
+
+            // add go back button
+            let goBack = document.createElement("button")
+            // TODO: replace this stupid message with an elegant solution
+            goBack.textContent = "뒤로가기 (다운로드 중에 누르지 마세요)"
+            goBack.onclick = () => showCourses()
+            lectureList.appendChild(goBack)
+
+            let sectionIndex = 0
+
+            // create a chapter and create sections for each chapter
+            for (let [index, chapter] of chapterList.entries()) {
+                // create a chapter
+                let chapterNode = chapterElement.cloneNode(true)
+                chapterNode.id = "chapter" + index
+                chapterNode.hidden = false
+                lectureList.appendChild(chapterNode)
+
+                document.querySelector(`#${chapterNode.id} .name`).textContent = chapter.elementName
+
+                let sectionContainer = document.querySelector(`#${chapterNode.id} .sections`)
+
+                // create sections
+                let prevElemOrder = 0
+                for (; sectionIndex < sectionList.length; sectionIndex++) {
+                    let section = sectionList[sectionIndex]
+                    let curElemOrder = section.elementOrder
+                    if (curElemOrder < prevElemOrder)
+                        break
+
+                    prevElemOrder = curElemOrder
+                    let sectionNode = sectionElement.cloneNode(true)
+                    sectionNode.id = "section" + index + "_" + (curElemOrder - 1)
+                    sectionNode.hidden = false
+                    sectionContainer.appendChild(sectionNode)
+
+                    document.querySelector(`#${sectionNode.id} .name`)
+                        .textContent = section.elementName
+
+                    document.querySelector(`#${sectionNode.id} .time`).textContent
+                        = makeDisplayTimeString(section.studyTotalTime, section.lessonTime)
+
+                    // set button callbacks
+                    let learnButton = document.querySelector(`#${sectionNode.id} .learn`)
+                    learnButton.onclick = () => learn(sectionNode, section);
+                    allLearnButtons.push(learnButton)
+
+                    let downloadButton = document.querySelector(`#${sectionNode.id} .download`)
+                    downloadButton.onclick = () => download(sectionNode, section);
+                }
+            }
+
+            lectureList.hidden = false
+        }
+
+        async function learn(sectionNode, section) {
+            // section.lessonTime is the total required time in minutes.
+            // section.studyTotalTime is the time studied in seconds
+            let requiredSeconds = section.lessonTime * 60 - section.studyTotalTime
+            if (requiredSeconds <= 0)
+                return
+
+            // if study period is overdue, don't do anything
+            let [ month, date, year ] = new Date().toLocaleDateString("kr").split("/")
+            let matched = section.endDateTime.match(/([0-9]{4})([0-9]{2})([0-9]{2})/)
+            let [ deadlineYear, deadlineMonth, deadlineDate ] 
+                = [ parseInt(matched[1]), parseInt(matched[2]), parseInt(matched[3]) ]
+            
+            if (deadlineYear === NaN
+                || deadlineMonth === NaN
+                || deadlineDate === NaN)
+                return
+
+            if (year > deadlineYear
+                || month > deadlineMonth
+                || date > deadlineDate)
+                return
+
+            // validation complete. Now learn.
+            allLearnButtons.forEach(e => e.disabled = true)
+            pendingSection.node = sectionNode
+            pendingSection.section = section
+
+            // randomly add up to 3 minutes so final study times are not lasor perfect
+            requiredSeconds += Math.floor(Math.random() * 180)
+
+            let requestId = requestAsyncHandler.request("learnRequest", {
+                lessonId: section.lessonElementId,
+                seconds: requiredSeconds
+            })
+
+            let response = await requestAsyncHandler.getResponse(requestId)
+            requestAsyncHandler.close(requestId)
+
+            allLearnButtons.forEach(e => e.disabled = false)
+
+            if (response.error === "busy") {
+                // TODO: handle busy
+                return
+            }
+
+            if (response.error !== undefined) {
+                displayError()
+                return;
+            }
+
+            // update local copy of data
+            section.studyTotalTime += response.seconds
+
+            // update UI
+            let time = document.querySelector(`#${sectionNode.id} .time`)
+            time.textContent = makeDisplayTimeString(section.studyTotalTime, section.lessonTime)
+        }
+
+        async function download(sectionNode, section) {
+            let progress = sectionNode.querySelector(".progress")
+            let button = sectionNode.querySelector(".download")
+
+            progress.hidden = false
+            button.disabled = true
+
+            let requestId = requestAsyncHandler.request("downloadRequest", {
+                lessonElementId: section.lessonElementId,
+                url: section.lessonFileUrl
+            })
+
+            do {
+                let response = await requestAsyncHandler.getResponse(requestId)
+    
+                if (response.error === "DownloadError") {
+                    progress.textContent = "유튜브 오류 발생 다시시도하세요"
+                    button.disabled = false
+                    break
+                }
+
+                if (response.error === "ParsingError") {
+                    progress.textContent = "지금은 유튜브만 지원됨"
+                    break
+                }
+                
+                if (response.error !== undefined ) {
+                    displayError()
+                    break
+                }
+
+                if (response.status === "cancelled") {
+                    progress.hidden = true
+                    button.disabled = false
+                    break
+                }
+    
+                if (response.status === "downloading") {
+                    progress.textContent = `다운로드 중... ${response.percentage}%`
+                }
+                else if (response.status === "done") {
+                    progress.textContent = "다운로드 완료"
+                    // button.disabled = false
+                    break
+                }
+            } while (true)
+            
+            requestAsyncHandler.close(requestId)
+        }
+
+        async function init() {
+            heading = document.getElementById("heading")
+            courseList = document.getElementById("courseList")
+            lectureList = document.getElementById("lectureList")
+            courseElement = document.getElementById("courseElement")
+            chapterElement = document.getElementById("chapterElement")
+            sectionElement = document.getElementById("sectionElement")
+
+            // fetch studyCourseList
+            let requestId = requestAsyncHandler.request("studyCourseListRequest", false)
+            let response = await requestAsyncHandler.getResponse(requestId)
+            requestAsyncHandler.close(requestId)
+
+            if (response.error === "busy") {
+                // TODO: handle busy
+                return
+            }
+
+            if (response.error !== undefined) {
+                displayError()
+                return;
+            }
+
+            studyCourseList = response.studyCourseList
+            createCourseListElements()
+            showCourses()
+        }
+
+        function createCourseListElements() {
+            for (let [index, course] of studyCourseList.entries()) {
+                let node = courseElement.cloneNode(true)
+                node.id = course.courseDTO.courseName
+                node.hidden = false
+                courseList.appendChild(node)
+
+                document.querySelector(`#${node.id} .name`).textContent = node.id
+                document.querySelector(`#${node.id} button`).onclick = () => showLectures(index)
+            }
+        }
+
+        function displayError() {
+            courseList.hidden = true
+            lectureList.hidden = true
+            heading.hidden = false
+            heading.textContent = "문제가 발생했습니다. 나중에 다시 시도하세요";
+        }
+
+    </script>
+    <h1>서울시립대학교 온라인강의실 2</h1>
+    <h2 id="heading">가져오는 중...</h2>
+
+    <!-- course list container -->
+    <div id="courseList" hidden="true">
+    </div>
+
+    <!-- lecture list container -->
+    <div id="lectureList" hidden="true">
+    </div>
+
+    <!-- template to create course element -->
+    <div id="courseElement" hidden="true">
+        <p class="name">lecture name</p>
+        <button type="button">이동</button>
+    </div>
+
+    <!-- template to create chapter element -->
+    <div id="chapterElement" hidden="true">
+        <h3 class="name">chapter name</h3>
+        <ol class="sections">
+        </ol>
+    </div>
+
+    <!-- template to create section element -->
+    <div id="sectionElement" hidden="true">
+        <p class="name">section name</p>
+        <p class="time">0분 0초 / 0분 0초</p>
+        <button class="learn" type="button">학습하기</button>
+        <button class="download" type="button">다운로드</button>
+        <p class="progress" hidden="true">다운로드 준비중...</p>
+    </div>
+
+    <script>
+        init()
+    </script>
+</body>
+
+</html>
