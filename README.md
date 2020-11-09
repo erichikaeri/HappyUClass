@@ -2,15 +2,17 @@
 
 os: Windows
 
+## 다운로드
+<a href="https://github.com/erichikaeri/HappyUClass/releases">다운로드</a>
+
 ## Dependency
 ```
-pip install selenium requests beautifulsoup4
+npm install
 ```
 
 ## 사용법
 ```
-python cli.py   # Command line
-python main.py  # UI
+npm start
 ```
 
 ## 데모
