@@ -117,9 +117,19 @@
             if (requiredSeconds <= 0)
                 return
 
+            // TODO: handle parsing errors; don't just return.
             // if study period is overdue, don't do anything
             let [ month, date, year ] = new Date().toLocaleDateString("kr").split("/")
-            let matched = section.endDateTime.match(/([0-9]{4})([0-9]{2})([0-9]{2})/)
+            month = parseInt(month)
+            date = parseInt(date)
+            year = parseInt(year)
+
+            if (month == NaN
+                || date == NaN
+                || year == NaN)
+                return
+
+                let matched = section.endDateTime.match(/([0-9]{4})([0-9]{2})([0-9]{2})/)
             let [ deadlineYear, deadlineMonth, deadlineDate ] 
                 = [ parseInt(matched[1]), parseInt(matched[2]), parseInt(matched[3]) ]
             
@@ -128,9 +138,15 @@
                 || deadlineDate === NaN)
                 return
 
-            if (year > deadlineYear
-                || month > deadlineMonth
-                || date > deadlineDate)
+            if (year > deadlineYear)
+                return
+            
+            if (year == deadlineYear && month > deadlineMonth)
+                return
+
+            if (year == deadlineYear
+                && month == deadlineMonth
+                && date > deadlineDate)
                 return
 
             // validation complete. Now learn.
